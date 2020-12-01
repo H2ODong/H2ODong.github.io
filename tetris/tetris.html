@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Tetris</title>
+    <style>
+        #container {
+            display: grid;
+            grid-template-columns: 3fr 5fr 3fr;
+            position: fixed;
+            top: calc(50vh - 45vmin + 5px);
+            left: calc(50vw - 49.5vmin + 4.5px);
+            width: calc(99vmin - 9px);
+            height: calc(90vmin - 10px);
+        }
+
+        canvas {
+            border-left: 1px solid white;
+            border-right: 1px solid white;
+        }
+
+        main>canvas {
+            position: absolute;
+            width: auto;
+            height: calc(100% + 300% / var(--height));
+            top: calc(-300% / var(--height));
+            clip-path: inset(calc(300% / (var(--height) + 3)) 0 0 0);
+        }
+
+        aside {
+            display: grid;
+            grid-template-rows: 3fr repeat(7, 1fr);
+        }
+
+        aside>div {
+            padding: 0 8%;
+        }
+
+        .little {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+        }
+
+        .little>canvas {
+            width: calc(18vmin - 2px);
+            height: calc(18vmin - 2px);
+        }
+
+        .little>span {
+            color: white;
+            font-size: 4vmin;
+            font-family: "ROG Fonts";
+            text-transform: uppercase;
+        }
+
+        .control {
+            display: flex;
+            align-items: center;
+            justify-content: space-around;
+        }
+
+        .control.clickable {
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .control>.key {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 25%;
+            height: 65%;
+            color: #AAA;
+            font-size: 1.8vmin;
+            font-weight: bold;
+            background: #333;
+            border-radius: 4px;
+            border-top: 1px solid #333;
+            box-shadow: inset 0 0 25px #444,
+                0 1px 0 #000,
+                0 2px 0 #333,
+                0 2px 3px #444;
+            text-shadow: 0px -1px 0px #000;
+        }
+
+        .control.clickable:active>.key,
+        .control.clickable.active>.key {
+            color: #888;
+            border-top: 1px solid #111;
+            box-shadow: inset 0 0 25px #444,
+                0 0 3px #444;
+        }
+
+        .control>.key+span {
+            width: 55%;
+            color: #AAA;
+            font-size: 2.2vmin;
+            text-transform: capitalize;
+        }
+
+        .control.clickable>.key+span {
+            text-decoration: underline;
+        }
+
+        .control.clickable:active>.key+span,
+        .control.clickable.active>.key+span {
+            color: #888;
+            text-decoration: none;
+        }
+
+        .info {
+            color: white;
+            font-size: 3vmin;
+            font-family: "ROG Fonts";
+            text-align: center;
+            text-transform: uppercase;
+        }
+
+        .info>p {
+            margin: 0;
+        }
+
+        #score {
+            margin: 10% 0 0 0;
+            color: #66BB6A;
+            line-height: 2em;
+            border-left: 1px solid white;
+            border-right: 1px solid white;
+        }
+
+        #combo {
+            color: #EF5350;
+            font-family: "ROG Fonts";
+        }
+    </style>
+</head>
+
+<body style="background:black;">
+    <div id="container">
+        <aside>
+            <div class="little">
+                <canvas id="hold"></canvas>
+                <span>hold</span>
+            </div>
+            <div class="control">
+                <span class="key">tab</span>
+                <span>hold tetris</span>
+            </div>
+            <div class="control">
+                <span class="key">↓</span>
+                <span>move down</span>
+            </div>
+            <div class="control">
+                <span class="key">←</span>
+                <span>move left</span>
+            </div>
+            <div class="control">
+                <span class="key">→</span>
+                <span>move right</span>
+            </div>
+            <div class="control">
+                <span class="key">Q</span>
+                <span>rotate ⟲</span>
+            </div>
+            <div class="control">
+                <span class="key">W</span>
+                <span>rotate ⟳</span>
+            </div>
+            <div class="control">
+                <span class="key">space</span>
+                <span>drop tetris</span>
+            </div>
+        </aside>
+        <main>
+            <canvas id="back"></canvas>
+            <canvas id="fore"></canvas>
+        </main>
+        <aside>
+            <div class="little">
+                <canvas id="next"></canvas>
+                <span>next</span>
+            </div>
+            <div></div>
+            <div class="info">
+                <p id="score">00000000</p>
+            </div>
+            <div class="info">
+                <p>score</p>
+            </div>
+            <div class="info">
+                <span id='combo'></span>
+            </div>
+            <div></div>
+            <div id="new-game" class="control clickable">
+                <span class="key">N</span>
+                <span>new game</span>
+            </div>
+            <div id="enter" class="control clickable">
+                <span class="key">enter</span>
+                <span>play</span>
+            </div>
+        </aside>
+    </div>
+    <script type="text/javascript" src="tetris.js"></script>
+</body>
+
+</html>
