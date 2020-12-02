@@ -1,7 +1,7 @@
 'use strict'
 
-// 俄羅斯方塊的空間，寬 10 格，高 20 格，單位格子佔畫布 64 單位長
-const unitSize = 1 << 6
+// 俄羅斯方塊的空間，寬 10 格，高 20 格，單位格子佔畫布 128 單位長
+const unitSize = 1 << 7
 const width = 10
 const height = width << 1
 const gapSize = unitSize >> 4
@@ -9,7 +9,7 @@ const gapSize = unitSize >> 4
 document.documentElement.style.setProperty('--height', height)
 
 // 紀錄佔據 Space 的 cells
-// 類似用 Set 存放數對 [x, y]，但是為了有效區別，以 'x,y' 作為 key
+// 類似用 Set 存放數對 [x, y]，但是為了有效區別，以 toKey(x, y) 作為 key
 class Space extends Map {
     constructor(x, y, color, colorLight, ...cells) {
         super()
@@ -25,13 +25,13 @@ class Space extends Map {
         return [...this.values()]
     }
     has(x, y) {
-        return super.has([x, y].toString())
+        return super.has(Space.toKey(x, y))
     }
     set(x, y) {
-        return super.set([x, y].toString(), [x, y])
+        return super.set(Space.toKey(x, y), [x, y])
     }
     delete(x, y) {
-        return super.delete([x, y].toString())
+        return super.delete(Space.toKey(x, y))
     }
     // 依右手定則，逆時針旋轉，一次轉 1/4 圈
     rotated(times) {
@@ -42,15 +42,18 @@ class Space extends Map {
                 this.forEach(([tx, ty]) => rotated.set(tx, ty))
                 return rotated
             case 1:
-                this.forEach(([tx, ty]) => rotated.set(x + y - ty, y - x + tx))
+                this.forEach(([tx, ty]) => rotated.set(x - y + ty, y + x - tx))
                 return rotated
             case 2:
                 this.forEach(([tx, ty]) => rotated.set(x + x - tx, y + y - ty))
                 return rotated
             case 3:
-                this.forEach(([tx, ty]) => rotated.set(x - y + ty, y + x - tx))
+                this.forEach(([tx, ty]) => rotated.set(x + y - ty, y - x + tx))
                 return rotated
         }
+    }
+    static toKey(x, y) {
+        return x << 16 | y & 0b1111_1111_1111_1111
     }
 }
 
@@ -73,24 +76,25 @@ const tetrominoes = [
 ]
 
 // 避免連續出現同一種方塊太多次，這個 iter 最多連續 4 次
+// 讓出現次數太少的方塊，容易被選到
 const tetrominoIter = function* () {
     // 準備一個袋子，7 種俄羅斯方塊各放 4 個
     const bag = [...tetrominoes, ...tetrominoes, ...tetrominoes, ...tetrominoes]
-    // 先隨機選 4 個，放 tetrominoBag 的最後
-    for (let k = 4; k; --k) {
+    let n = 14
+    // 先隨機選 n 個，放 tetrominoBag 的最後
+    for (let k = n; k; --k) {
         let i = bag.length - k
         let j = ~~((i + 1) * Math.random())
         { [bag[i], bag[j]] = [bag[j], bag[i]] }
     }
-    // 最後 4 個作為歷史紀錄，排除選擇
-    for (let k = 4; ; k = k % 4 + 1) {
+    // 最後 n 個作為歷史紀錄，排除選擇
+    for (let k = n; ; k = k % n + 1) {
         let i = bag.length - k
-        let j = ~~((bag.length - 4) * Math.random())
+        let j = ~~((bag.length - n) * Math.random())
         { [bag[i], bag[j]] = [bag[j], bag[i]] }
         yield bag[i]
     }
 }()
-
 
 const backCanvas = document.getElementById('back')
 const foreCanvas = document.getElementById('fore')
@@ -104,30 +108,37 @@ backCanvas.width = foreCanvas.width = width * unitSize
 backCanvas.height = foreCanvas.height = (height + 3) * unitSize
 holdCanvas.width = nextCanvas.width = 4 * unitSize
 holdCanvas.height = nextCanvas.height = 4 * unitSize
+backCtx.lineWidth = foreCtx.lineWidth = gapSize
+nextCtx.lineWidth = holdCtx.lineWidth = gapSize
+backCtx.strokeStyle = foreCtx.strokeStyle = '#222'
+nextCtx.strokeStyle = holdCtx.strokeStyle = '#222'
+// height + 3: 上方需要保留可以凸出去的空間
+
+// getImageData, putImageData 不適用 ctx.translate
+// 因此以 cell(x, y) 作為 Linear Transformation
+// 而 nextCtx, holdCtx 並沒有凸出去 3 格
+// 因此以 ctx.translate 做逆轉換
+
+nextCtx.translate(...size(0, -3))
+holdCtx.translate(...size(0, -3))
 
 function cell(x, y) {
     return [x * unitSize, (y + 3) * unitSize]
 }
 
-// getImageData, putImageData 不適用 transform
-
 function size(w, h) {
     return [w * unitSize, h * unitSize]
 }
 
-nextCtx.translate(...size(0, -3))
-holdCtx.translate(...size(0, -3))
-
 // 畫條紋格狀背景
-for (let i = 1; i <= width; i += 2) {
-    backCtx.fillStyle = '#888'
-    backCtx.fillRect(...cell(i, 0), ...size(-1, height))
-    backCtx.lineWidth = gapSize
-    for (let j = 0; j < height; ++j) {
-        backCtx.strokeRect(...cell(i, j), ...size(-1, 1))
-    }
-    backCtx.fillStyle = '#000'
+for (let i = 1; i < width; i += 2) {
+    backCtx.fillStyle = '#AAA'
     backCtx.fillRect(...cell(i, 0), ...size(1, height))
+    for (let j = 0; j < height; ++j) {
+        backCtx.strokeRect(...cell(i, j), ...size(1, 1))
+    }
+    backCtx.fillStyle = backCtx.strokeStyle
+    backCtx.fillRect(...cell(i, 0), ...size(-1, height))
 }
 
 function clear(ctx) {
@@ -141,7 +152,6 @@ function fillTetromino(ctx, x, y, r, tetromino, light = false) {
     ctx.save()
     ctx.fillStyle = light ? tetromino.colorLight : tetromino.color
     ctx.globalAlpha = light ? 0.9 : 1
-    ctx.lineWidth = gapSize
     for (let [tx, ty] of tetromino.rotated(r)) {
         ctx.fillRect(...cell(x + tx, y + ty), ...size(1, 1))
         ctx.strokeRect(...cell(x + tx, y + ty), ...size(1, 1))
@@ -155,7 +165,11 @@ function clearTetromino(ctx, x, y, r, tetromino) {
     }
 }
 
+const titleElem = document.getElementById('title')
 const scoreElem = document.getElementById('score')
+const comboElem = document.getElementById('combo')
+
+const unitScore = 10
 
 const tetris = {
     get space() { return this._space },
@@ -177,8 +191,10 @@ const tetris = {
         this.tetromino = this.nextTetromino
         this.holdTetromino = null
         this.nextTetromino = tetrominoIter.next().value
+        this.score = 0
+        this.combo = 0
     },
-    // dropPoint: Array[r][x+2][y]
+    // dropPoint: Array[r][x+2](y)
     dropPoint: Array.from({ length: 4 }, _ => new Array(width + 1)),
     // nCellsInRows: Array[y+3]，紀錄 row 放了幾個 cell
     nCellsInRows: new Array(height + 3 + 1),
@@ -191,9 +207,10 @@ const tetris = {
     set cursor([x, y, r]) {
         r = r & 3
         let d = this.dropPoint[r][x + 2]
-        let [x0, y0, r0] = this.cursor
+        let [x0, y0, r0] = this.space.center
         let d0 = this.dropPoint[r0][x0 + 2]
         if (d <= y) {
+            // 計算落點
             for (d = y; this.isNotCollision(x, d + 1, r); ++d) { }
             this.dropPoint[r][x + 2] = d
         }
@@ -204,14 +221,17 @@ const tetris = {
         }
         fillTetromino(foreCtx, x, y, r, this.tetromino)
         this.space.center = [x, y, r]
+        this.score += ((x - x0 & 1) + (y - y0 << 1) + (r - r0 & 1)) * unitScore
     },
     get tetromino() { return this._tetromino },
     set tetromino(value) {
         this.dropPoint.forEach(array => array.fill(-4))
-        // tetromino 生成指標 [x, y, r]，基於 tetromino 的 space 而偏移
+        // tetromino 生成指標 [x, y, r]
         this.space.center = [(width >> 1) - 2, -4, 0]
         this._tetromino = value
         this.cursor = this.space.center
+        // 先賦值在 space.center，前個著地 tetromino 就不會被繪除
+        // 該指標是繪製不可見的，所以重複賦值是為了計算落點、繪製落點預測
     },
     held: false,
     get holdTetromino() { return this._holdTetromino },
@@ -235,13 +255,28 @@ const tetris = {
         fillTetromino(nextCtx, 0, 0, 0, value)
         this._nextTetromino = value
     },
-    get delay() {
-        return 1000
-    },
+    get delay() { return 2048 * (1 + 1 / 8192) ** (-this.score >> 5) + 32 },
+    get tick() { return this.delay / 16 + 64 },
     get score() { return this._score },
     set score(value) {
-
+        scoreElem.textContent = String(value).padStart(8, '0')
+        this._score = value
     },
+    get combo() { return this._combo },
+    set combo(value) {
+        if (!value || value == this._combo) {
+            comboElem.style.visibility = 'hidden'
+            this._combo = 0
+        } else {
+            comboElem.style.visibility = 'visible'
+            comboElem.textContent = value
+            this._combo = value
+            comboElem.style.animation = 'comboScale 50ms ease-out'
+            setTimeout(_ => comboElem.style.animation = '', 50)
+            this.score += 5 * value * unitScore
+        }
+    },
+    // 涉及原生 setTimeout 的函數，需要有取消的機制
     clearTimeout: _ => { },
     setTimeout(ms) {
         return new Promise((res, rej) => {
@@ -253,29 +288,140 @@ const tetris = {
         this.clearTimeout(reason)
         onkeydown.inactive.push('tab', 'arrowdown', 'arrowleft', 'arrowright', 'q', 'w', ' ')
     },
+    // 在進行一些步驟前，取消正在計時的 callback，結束後繼續進行遊戲
     async run(asynfunc, onFinally) {
         this.lock()
         try {
             await asynfunc().finally(onFinally)
-            this.run(async _ => {
+            while (true) {
                 onkeydown.inactive.length = 0
-                if (movedown() == 'Died') {
-                    throw 'Died'
+                switch (movedown()) {
+                    case 'Drop':
+                        throw 'Drop'
+                    case 'Died':
+                        throw 'Died'
                 }
                 await this.setTimeout(this.delay)
-            })
+            }
         } catch (error) {
-            console.log('\x1b[31mtetris.run Caught:', error)
+            console.log('\x1b[31mCaught by tetris.run:', error)
         }
     },
 }
 
+function movedown() {
+    let [x, y, r] = tetris.cursor
+    if (tetris.dropPoint[r][x + 2] != y) {
+        tetris.cursor = [x, ++y, r]
+        return
+    }
+    if (y == -4) {
+        return die()
+    }
+    // cells 著地
+    let nfulls = 0
+    for (let [tx, ty] of tetris.tetromino.rotated(r)) {
+        tetris.space.set(x + tx, y + ty)
+        tetris.nCellsInRows[y + ty + 3] += 1
+        if (tetris.nCellsInRows[y + ty + 3] == width) {
+            nfulls += 1
+        }
+    }
+    tetris.score += ((nfulls && 200 * nfulls - 100) + 40) * unitScore
+    tetris.combo += nfulls
+    // 找出放滿的 row，計算各 row 平移到哪 row，同時平移 nCellsInRows
+    // fulls: Array(y), shiftMap: y0 => y
+    let fulls = []
+    let shiftMap = new Array(height + 3 + 1)
+    let topmost = height
+    if (nfulls) {
+        for (let j = height; j > -4; --j) {
+            if (tetris.nCellsInRows[j + 3] == width) {
+                fulls.push(j)
+                shiftMap[j] = fulls.length - 4
+            } else {
+                tetris.nCellsInRows[fulls.length + j + 3] = tetris.nCellsInRows[j + 3]
+                shiftMap[j] = fulls.length + j
+            }
+            if (tetris.nCellsInRows[j + 3]) {
+                topmost -= 1
+            }
+        }
+        tetris.nCellsInRows.fill(0, 0, nfulls)
+        // cells 消除
+        let cells = tetris.space.cells().map(([tx, ty]) => [tx, shiftMap[ty]])
+        tetris.space.clear()
+        cells.forEach(cell => tetris.space.set(...cell))
+        for (let i = 0; i < width; ++i) {
+            for (let j = 0; j < nfulls; ++j) {
+                tetris.space.delete(i, j - 3)
+            }
+        }
+    }
+    tetris.run(async _ => {
+        // 著地動畫
+        fillTetromino(foreCtx, x, y, r, tetris.tetromino, 'light')
+        await tetris.setTimeout(tetris.tick)
+        fillTetromino(foreCtx, x, y, r, tetris.tetromino)
+        if (!nfulls) {
+            return
+        }
+        // 消除動畫
+        if (nfulls + topmost == 20) {
+            titleElem.style.color = '#66BB6A'
+            titleElem.style.opacity = 1
+            titleElem.innerHTML = 'perfect<br />clear'
+            tetris.score += 1000 * unitScore
+        }
+        await tetris.setTimeout(tetris.tick)
+        let lines = fulls.map(fy => foreCtx.getImageData(...cell(0, fy), ...size(width, 1)))
+        fulls.forEach(fy => foreCtx.clearRect(...cell(0, fy), ...size(width, 1)))
+        await tetris.setTimeout(tetris.tick + 200 * (nfulls + topmost == 20))
+        fulls.forEach((fy, i) => foreCtx.putImageData(lines[i], ...cell(0, fy)))
+        await tetris.setTimeout(tetris.tick)
+    }, _ => {
+        // 著地繪製
+        fillTetromino(foreCtx, x, y, r, tetris.tetromino)
+        // 消除繪製
+        titleElem.style.opacity = 0
+        fulls.forEach(fy => foreCtx.clearRect(...cell(0, fy), ...size(width, 1)))
+        fulls.push(topmost - 1)
+        for (let j = 0; j < nfulls; ++j) {
+            let bottom = fulls[j]
+            let top = fulls[j + 1] + 1
+            if (bottom - top) {
+                let toShift = foreCtx.getImageData(...cell(0, top), ...size(width, bottom - top))
+                foreCtx.putImageData(toShift, ...cell(0, top + shiftMap[bottom] + 4))
+            }
+        }
+        foreCtx.clearRect(...cell(0, topmost), ...size(width, nfulls))
+        tetris.tetromino = tetris.nextTetromino
+        tetris.held = false
+        tetris.nextTetromino = tetrominoIter.next().value
+    })
+    return 'Drop'
+}
+
+// t: 依右手定則，1: 逆時針, -1: 順時針
+function rotate(x, y, r, t) {
+    r += t
+    if (tetris.isNotCollision(x, y, r)) {
+        return tetris.cursor = [x, y, r]
+    } else if (tetris.isNotCollision(x - t, y, r)) {
+        return tetris.cursor = [x - t, y, r]
+    } else if (tetris.isNotCollision(x + t, y, r)) {
+        return tetris.cursor = [x + t, y, r]
+    }
+}
+
 var onkeydown = event => {
     let key = event.key.toLowerCase()
-    if (onkeydown[key] && !onkeydown.inactive.includes(key)) {
+    if (onkeydown[key]) {
         event.preventDefault()
-        // 如果沒做什麼，會回傳 true，詳: listener = event => event.repeat || value()
-        onkeydown[key](event) || console.log('\x1b[33monkeydown:', key)
+        if (!onkeydown.inactive.includes(key)) {
+            // 如果沒做什麼，會回傳 true，詳: listener = event => event.repeat || value()
+            onkeydown[key](event) || console.log('\x1b[33monkeydown:', key)
+        }
     }
 }
 
@@ -321,7 +467,8 @@ for (let [key, elem] of Object.entries(onkeydown)) {
 onkeydown['tab'] = _ => {
     if (tetris.held) {
         fillTetromino(holdCtx, 0, 0, 0, tetris.holdTetromino, 'light')
-        setTimeout(fillTetromino, 200, holdCtx, 0, 0, 0, tetris.holdTetromino)
+        setTimeout(fillTetromino, tetris.tick, holdCtx, 0, 0, 0, tetris.holdTetromino)
+        // 時間很短，先不處理需要取消的問題
         return
     }
     if (tetris.holdTetromino == null) {
@@ -329,60 +476,38 @@ onkeydown['tab'] = _ => {
         tetris.nextTetromino = tetrominoIter.next().value
     }
     [tetris.holdTetromino, tetris.tetromino] = [tetris.tetromino, tetris.holdTetromino]
+    tetris.score += 20 * unitScore
 }
 
-onkeydown['arrowdown'] = movedown
+onkeydown['arrowdown'] = _ => {
+    let [x, y, r] = tetris.cursor
+    if (tetris.dropPoint[r][x + 2] != y) {
+        tetris.cursor = [x, ++y, r]
+    }
+}
 
 onkeydown['arrowleft'] = _ => {
     let [x, y, r] = tetris.cursor
-    x -= 1
-    if (tetris.isNotCollision(x, y, r)) {
+    if (tetris.isNotCollision(--x, y, r)) {
         tetris.cursor = [x, y, r]
     }
 }
 
 onkeydown['arrowright'] = _ => {
     let [x, y, r] = tetris.cursor
-    x += 1
-    if (tetris.isNotCollision(x, y, r)) {
+    if (tetris.isNotCollision(++x, y, r)) {
         tetris.cursor = [x, y, r]
     }
 }
 
 onkeydown['q'] = _ => {
     let [x, y, r] = tetris.cursor
-    r -= 1
-    if (tetris.isNotCollision(x, y, r)) {
-        tetris.cursor = [x, y, r]
-    } else if (tetris.isNotCollision(x - 1, y, r)) {
-        tetris.cursor = [--x, y, r]
-    } else if (tetris.isNotCollision(x + 1, y, r)) {
-        tetris.cursor = [++x, y, r]
-    } else if (tetris.isNotCollision(x, y + 1, r)) {
-        tetris.cursor = [x, ++y, r]
-    } else if (tetris.isNotCollision(x - 1, y + 1, r)) {
-        tetris.cursor = [--x, ++y, r]
-    } else if (tetris.isNotCollision(x + 1, y + 1, r)) {
-        tetris.cursor = [++x, ++y, r]
-    }
+    rotate(x, y, r, 1) || rotate(x, ++y, r, 1)
 }
 
 onkeydown['w'] = _ => {
     let [x, y, r] = tetris.cursor
-    r += 1
-    if (tetris.isNotCollision(x, y, r)) {
-        tetris.cursor = [x, y, r]
-    } else if (tetris.isNotCollision(x + 1, y, r)) {
-        tetris.cursor = [++x, y, r]
-    } else if (tetris.isNotCollision(x - 1, y, r)) {
-        tetris.cursor = [--x, y, r]
-    } else if (tetris.isNotCollision(x, y + 1, r)) {
-        tetris.cursor = [x, ++y, r]
-    } else if (tetris.isNotCollision(x + 1, y + 1, r)) {
-        tetris.cursor = [++x, ++y, r]
-    } else if (tetris.isNotCollision(x - 1, y + 1, r)) {
-        tetris.cursor = [--x, ++y, r]
-    }
+    rotate(x, y, r, -1) || rotate(x, ++y, r, -1)
 }
 
 onkeydown[' '] = _ => {
@@ -399,107 +524,22 @@ onkeydown['n'] = {
     }
 }
 
-function movedown() {
-    let [x, y, r] = tetris.cursor
-    if (tetris.dropPoint[r][x + 2] != y) {
-        tetris.cursor = [x, ++y, r]
-        return
-    }
-    if (y == -4) {
-        return die()
-    }
-    // cells 著地
-    let nfulls = 0
-    for (let [tx, ty] of tetris.tetromino.rotated(r)) {
-        tetris.space.set(x + tx, y + ty)
-        tetris.nCellsInRows[y + ty + 3] += 1
-        if (tetris.nCellsInRows[y + ty + 3] == width) {
-            nfulls += 1
-        }
-    }
-    // 找出放滿的 row，計算各 row 平移到哪 row，同時平移 nCellsInRows
-    // fulls: Array[y], shiftMap: y0 => y
-    let fulls = []
-    let shiftMap = new Array(height + 3 + 1)
-    let topmost = height
-    if (nfulls) {
-        for (let j = height; j > -4; --j) {
-            if (tetris.nCellsInRows[j + 3] == width) {
-                fulls.push(j)
-                shiftMap[j] = fulls.length - 4
-            } else {
-                tetris.nCellsInRows[fulls.length + j + 3] = tetris.nCellsInRows[j + 3]
-                shiftMap[j] = fulls.length + j
-            }
-            if (tetris.nCellsInRows[j + 3]) {
-                topmost -= 1
-            }
-        }
-        tetris.nCellsInRows.fill(0, 0, fulls.length)
-        // cells 消除
-        let cells = tetris.space.cells().map(([tx, ty]) => [tx, shiftMap[ty]])
-        tetris.space.clear()
-        cells.forEach(cell => tetris.space.set(...cell))
-        for (let i = 0; i < width; ++i) {
-            for (let j = 0; j < nfulls; ++j) {
-                tetris.space.delete(i, j - 3)
-            }
-        }
-    }
-    tetris.run(async _ => {
-        // 著地動畫
-        fillTetromino(foreCtx, x, y, r, tetris.tetromino, 'light')
-        await tetris.setTimeout(200)
-        fillTetromino(foreCtx, x, y, r, tetris.tetromino)
-        if (!nfulls) {
-            return
-        }
-        await tetris.setTimeout(200)
-        // 消除動畫
-        let lines = Array.from(fulls, fy => foreCtx.getImageData(...cell(0, fy), ...size(width, 1)))
-        fulls.forEach(fy => foreCtx.clearRect(...cell(0, fy), ...size(width, 1)))
-        await tetris.setTimeout(200)
-        fulls.forEach((fy, i) => foreCtx.putImageData(lines[i], ...cell(0, fy)))
-        await tetris.setTimeout(200)
-    }, _ => {
-        // 著地繪製
-        fillTetromino(foreCtx, x, y, r, tetris.tetromino)
-        // 消除繪製
-        fulls.forEach(fy => foreCtx.clearRect(...cell(0, fy), ...size(width, 1)))
-        fulls.push(topmost - 1)
-        for (let j = 0; j < nfulls; ++j) {
-            let bottom = fulls[j]
-            let top = fulls[j + 1] + 1
-            if (bottom - top) {
-                let toShift = foreCtx.getImageData(...cell(0, top), ...size(width, bottom - top))
-                foreCtx.putImageData(toShift, ...cell(0, top + shiftMap[bottom] + 4))
-            }
-        }
-        foreCtx.clearRect(...cell(0, topmost), ...size(width, nfulls))
-        tetris.tetromino = tetris.nextTetromino
-        tetris.held = false
-        tetris.nextTetromino = tetrominoIter.next().value
-    })
-}
-
-// 依右手定則，1: 逆時針, -1: 順時針
-function rotate(x, y, r) {
-    if (tetris.isNotCollision(x, y, r)) {
-        tetris.cursor = [x, y, r]
-    } else if (tetris.isNotCollision(x - 1, y, r)) {
-        tetris.cursor = [--x, y, r]
-    } else if (tetris.isNotCollision(x + 1, y, r)) {
-        tetris.cursor = [++x, y, r]
-    } else {
-        return false
-    }
-    return true
-}
-
 async function countdown() {
-    for (let i = 3; i; --i) {
-        console.log(i)
-        await tetris.setTimeout(1000)
+    titleElem.style.color = '#29B6F6'
+    try {
+        for (let i = 3; i; --i) {
+            titleElem.style.opacity = 1
+            titleElem.textContent = i
+            console.log(i)
+            await tetris.setTimeout(100)
+            titleElem.style.transition = 'opacity 1s ease-in'
+            titleElem.style.opacity = 0
+            await tetris.setTimeout(900)
+            titleElem.style.transition = ''
+        }
+    } catch (error) {
+        titleElem.style.transition = ''
+        throw error
     }
     console.log(0)
 }
@@ -512,6 +552,10 @@ function reset() {
 
 function die() {
     tetris.run(async _ => {
+        titleElem.style.color = '#ef5350'
+        titleElem.style.transition = 'opacity 800ms ease'
+        titleElem.style.opacity = 1
+        titleElem.innerHTML = 'game<br />over'
         await tetris.setTimeout(1000)
         reset()
         throw 'Returns by Death'
@@ -521,24 +565,27 @@ function die() {
 
 function play() {
     tetris.run(async _ => {
-        await countdown()
         onkeydown['enter'] = pause
-        tetris.space = new Space()
+        await countdown()
         foreCanvas.hidden = false
-    })
+    }, _ => tetris.space = new Space())
 }
 
 function resume() {
     tetris.run(async _ => {
-        await countdown()
         onkeydown['enter'] = pause
+        await countdown()
+        onkeydown.inactive.length = 0
         foreCanvas.hidden = false
-        await tetris.setTimeout(tetris.delay >> 1)
+        await tetris.setTimeout(tetris.delay / 2)
     })
 }
 
 function pause() {
     onkeydown['enter'] = resume
+    titleElem.style.color = '#66BB6A'
+    titleElem.style.opacity = 1
+    titleElem.textContent = 'pause'
     foreCanvas.hidden = true
     tetris.lock('Pause')
 }

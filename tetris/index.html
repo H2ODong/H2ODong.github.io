@@ -3,7 +3,14 @@
 
 <head>
     <title>Tetris</title>
+    <link rel="preconnect" href="https://fonts.gstatic.com">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Play&display=swap" rel="stylesheet">
     <style>
+        @font-face {
+            font-family: 'ROG Fonts';
+            src: url(ROGFonts-Regular.otf);
+        }
+
         #container {
             display: grid;
             grid-template-columns: 3fr 5fr 3fr;
@@ -19,12 +26,30 @@
             border-right: 1px solid white;
         }
 
+        main {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
         main>canvas {
             position: absolute;
             width: auto;
             height: calc(100% + 300% / var(--height));
             top: calc(-300% / var(--height));
             clip-path: inset(calc(300% / (var(--height) + 3)) 0 0 0);
+            border-bottom: 1px solid white;
+        }
+
+        #title {
+            z-index: 1;
+            position: absolute;
+            color: black;
+            font: 10vmin 'ROG Fonts', 'Orbitron', sans-serif;
+            -webkit-text-stroke-width: .03em;
+            -webkit-text-stroke-color: white;
+            text-align: center;
+            text-transform: uppercase;
         }
 
         aside {
@@ -50,8 +75,7 @@
 
         .little>span {
             color: white;
-            font-size: 4vmin;
-            font-family: "ROG Fonts";
+            font: 4vmin 'ROG Fonts', 'Orbitron', sans-serif;
             text-transform: uppercase;
         }
 
@@ -74,7 +98,6 @@
             height: 65%;
             color: #AAA;
             font-size: 1.8vmin;
-            font-weight: bold;
             background: #333;
             border-radius: 4px;
             border-top: 1px solid #333;
@@ -96,7 +119,7 @@
         .control>.key+span {
             width: 55%;
             color: #AAA;
-            font-size: 2.2vmin;
+            font: 2.2vmin 'Play', sans-serif;
             text-transform: capitalize;
         }
 
@@ -112,8 +135,7 @@
 
         .info {
             color: white;
-            font-size: 3vmin;
-            font-family: "ROG Fonts";
+            font: 3vmin 'ROG Fonts', 'Orbitron', sans-serif;
             text-align: center;
             text-transform: uppercase;
         }
@@ -122,8 +144,15 @@
             margin: 0;
         }
 
+        #timer {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #29B6F6;
+        }
+
         #score {
-            margin: 10% 0 0 0;
+            margin: 8% 0 0 0;
             color: #66BB6A;
             line-height: 2em;
             border-left: 1px solid white;
@@ -131,8 +160,19 @@
         }
 
         #combo {
+            visibility: hidden;
             color: #EF5350;
-            font-family: "ROG Fonts";
+        }
+
+        #combo::after {
+            content: 'combo';
+            margin-left: 8%;
+        }
+
+        @keyframes comboScale {
+            from {
+                transform: scale(1.2) translate(0, -10%);
+            }
         }
     </style>
 </head>
@@ -176,13 +216,16 @@
         <main>
             <canvas id="back"></canvas>
             <canvas id="fore"></canvas>
+            <div id="title">tetris</div>
         </main>
         <aside>
             <div class="little">
                 <canvas id="next"></canvas>
                 <span>next</span>
             </div>
-            <div></div>
+            <div id="timer" class="info">
+                00:00
+            </div>
             <div class="info">
                 <p id="score">00000000</p>
             </div>
@@ -190,7 +233,7 @@
                 <p>score</p>
             </div>
             <div class="info">
-                <span id='combo'></span>
+                <p id='combo'>0</p>
             </div>
             <div></div>
             <div id="new-game" class="control clickable">
