@@ -97,7 +97,7 @@
             width: 25%;
             height: 65%;
             color: #AAA;
-            font-size: 1.8vmin;
+            font: 1.8vmin sans-serif;
             background: #333;
             border-radius: 4px;
             border-top: 1px solid #333;
@@ -151,6 +151,20 @@
             color: #29B6F6;
         }
 
+        #timer>span:nth-child(2n + 1) {
+            min-width: 2em;
+        }
+
+        #timer>span:nth-child(2n) {
+            animation: timerTwinkle 1s step-end;
+        }
+
+        @keyframes timerTwinkle {
+            50% {
+                opacity: 0;
+            }
+        }
+
         #score {
             margin: 8% 0 0 0;
             color: #66BB6A;
@@ -167,12 +181,6 @@
         #combo::after {
             content: 'combo';
             margin-left: 8%;
-        }
-
-        @keyframes comboScale {
-            from {
-                transform: scale(1.2) translate(0, -10%);
-            }
         }
     </style>
 </head>
@@ -224,7 +232,7 @@
                 <span>next</span>
             </div>
             <div id="timer" class="info">
-                00:00
+                <span>00</span><span>:</span><span>00</span>
             </div>
             <div class="info">
                 <p id="score">00000000</p>
