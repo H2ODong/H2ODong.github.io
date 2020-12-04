@@ -168,9 +168,8 @@ function clearTetromino(ctx, x, y, r, tetromino) {
 const titleElem = document.getElementById('title')
 const timerElem = document.getElementById('timer')
 const scoreElem = document.getElementById('score')
+const linesElem = document.getElementById('lines')
 const comboElem = document.getElementById('combo')
-
-const unitScore = 10
 
 const tetris = {
     get space() { return this._space },
@@ -190,10 +189,10 @@ const tetris = {
         this._space = value
         this.nCellsInRows.fill(0)
         this.tetromino = this.nextTetromino
-        this.holdTetromino = null
+        this.heldTetromino = null
         this.nextTetromino = tetrominoIter.next().value
         this.score = 0
-        this.combo = 0
+        this.nlines = 0
     },
     // dropPoint: Array[r][x+2](y)
     dropPoint: Array.from({ length: 4 }, _ => new Array(width + 1)),
@@ -222,7 +221,7 @@ const tetris = {
         }
         fillTetromino(foreCtx, x, y, r, this.tetromino)
         this.space.center = [x, y, r]
-        this.score += ((x - x0 & 1) + (y - y0 << 1) + (r - r0 & 1)) * unitScore
+        this.score += (!!(x - x0) + !!(y - y0) + !!(r - r0)) ** 5 + (y - y0 << 1) - !!(y - y0)
     },
     get tetromino() { return this._tetromino },
     set tetromino(value) {
@@ -235,12 +234,12 @@ const tetris = {
         // 該指標是繪製不可見的，所以重複賦值是為了計算落點、繪製落點預測
     },
     held: false,
-    get holdTetromino() { return this._holdTetromino },
-    set holdTetromino(value) {
+    get heldTetromino() { return this._heldTetromino },
+    set heldTetromino(value) {
         clear(holdCtx)
         if (value == null) {
             this.held = false
-        } else if (this._holdTetromino != null) {
+        } else if (this._heldTetromino != null) {
             let [x, y, r] = this.cursor
             let d = this.dropPoint[r][x + 2]
             clearTetromino(foreCtx, x, y, r, this.tetromino)
@@ -248,7 +247,7 @@ const tetris = {
             fillTetromino(holdCtx, 0, 0, 0, value)
             this.held = true
         }
-        this._holdTetromino = value
+        this._heldTetromino = value
     },
     get nextTetromino() { return this._nextTetromino },
     set nextTetromino(value) {
@@ -256,28 +255,30 @@ const tetris = {
         fillTetromino(nextCtx, 0, 0, 0, value)
         this._nextTetromino = value
     },
-    get delay() { return 2048 * (1 + 1 / 16384) ** (-this.score >> 8) + 32 },
+    get delay() { return 2048 * (1 + 1 / 16384) ** (-this.score >> 6) + 32 },
     get tick() { return this.delay / 16 + 64 },
     get score() { return this._score },
     set score(value) {
         scoreElem.textContent = String(value).padStart(8, '0')
         this._score = value
     },
-    get combo() { return this._combo },
-    set combo(value) {
-        if (!value || value == this._combo) {
+    combo: 0,
+    get nlines() { return this._nlines },
+    set nlines(value) {
+        if (value == this._nlines || !value) {
             comboElem.style.visibility = 'hidden'
-            this._combo = 0
+            this.combo = 0
         } else {
+            this.combo += value - this._nlines
             comboElem.style.visibility = 'visible'
             comboElem.animate({
                 transform: 'scale(1.2) translate(0, -10%)',
                 easing: 'ease-out',
             }, 80)
-            comboElem.textContent = value
-            this._combo = value
-            this.score += 5 * value * unitScore
+            comboElem.textContent = this.combo
         }
+        this._nlines = linesElem.textContent = value
+        this.score += 5 * this.combo
     },
     // 涉及原生 setTimeout 的函數，需要有取消的機制
     clearTimeout: _ => { },
@@ -339,7 +340,8 @@ const timer = {
         this.paused = true
         this.startTimestamp = this.pausedTimestamp = performance.now()
         timerElem.children[1].style.animationIterationCount = 1
-    }
+    },
+    displayScore: 0,
 }
 
 function movedown() {
@@ -360,22 +362,26 @@ function movedown() {
             nfulls += 1
         }
     }
-    // 找出放滿的 row，計算各 row 平移到哪 row，同時平移 nCellsInRows
+    // 找出並消除放滿的 row，計算各 row 平移到哪 row，同時平移 nCellsInRows
     // fulls: Array(y), shiftMap: y0 => y
     let fulls = []
     let shiftMap = new Array(height + 3 + 1)
     let topmost = height
     if (nfulls) {
         for (let j = height; j > -4; --j) {
+            if (tetris.nCellsInRows[j + 3]) {
+                topmost -= 1
+            }
             if (tetris.nCellsInRows[j + 3] == width) {
                 fulls.push(j)
                 shiftMap[j] = fulls.length - 4
             } else {
                 tetris.nCellsInRows[fulls.length + j + 3] = tetris.nCellsInRows[j + 3]
                 shiftMap[j] = fulls.length + j
+                continue
             }
-            if (tetris.nCellsInRows[j + 3]) {
-                topmost -= 1
+            for (let i = 0; i < width; ++i) {
+                tetris.space.delete(i, j)
             }
         }
         tetris.nCellsInRows.fill(0, 0, nfulls)
@@ -383,15 +389,7 @@ function movedown() {
         let cells = tetris.space.cells().map(([tx, ty]) => [tx, shiftMap[ty]])
         tetris.space.clear()
         cells.forEach(cell => tetris.space.set(...cell))
-        for (let i = 0; i < width; ++i) {
-            for (let j = 0; j < nfulls; ++j) {
-                tetris.space.delete(i, j - 3)
-            }
-        }
     }
-    tetris.score += ((nfulls && 200 * nfulls - 100) + 40) * unitScore
-    tetris.score += 1000 * (nfulls + topmost == 20) * unitScore
-    tetris.combo += nfulls
     tetris.run(async _ => {
         // 著地動畫
         fillTetromino(foreCtx, x, y, r, tetris.tetromino, 'light')
@@ -404,7 +402,7 @@ function movedown() {
         if (nfulls + topmost == 20) {
             titleElem.style.color = 'black'
             titleElem.style.opacity = 1
-            titleElem.innerHTML = 'perfect<br />clear'
+            titleElem.textContent = 'perfect\nclear'
         }
         await tetris.setTimeout(tetris.tick)
         let lines = fulls.map(fy => foreCtx.getImageData(...cell(0, fy), ...size(width, 1)))
@@ -432,6 +430,10 @@ function movedown() {
         tetris.held = false
         tetris.nextTetromino = tetrominoIter.next().value
     })
+    tetris.nlines += nfulls
+    debugger
+    tetris.score += (nfulls && 200 * nfulls - 100) + 40
+    tetris.score += 1000 * (nfulls && nfulls + topmost == 20)
     return 'Drop'
 }
 
@@ -499,24 +501,28 @@ for (let [key, elem] of Object.entries(onkeydown)) {
 
 onkeydown['tab'] = _ => {
     if (tetris.held) {
-        fillTetromino(holdCtx, 0, 0, 0, tetris.holdTetromino, 'light')
-        setTimeout(fillTetromino, tetris.tick, holdCtx, 0, 0, 0, tetris.holdTetromino)
+        fillTetromino(holdCtx, 0, 0, 0, tetris.heldTetromino, 'light')
+        setTimeout(fillTetromino, tetris.tick, holdCtx, 0, 0, 0, tetris.heldTetromino)
         // 時間很短，先不處理需要取消的問題
         return
     }
-    if (tetris.holdTetromino == null) {
-        tetris.holdTetromino = tetris.nextTetromino
+    if (tetris.heldTetromino == null) {
+        tetris.heldTetromino = tetris.nextTetromino
         tetris.nextTetromino = tetrominoIter.next().value
     }
-    [tetris.holdTetromino, tetris.tetromino] = [tetris.tetromino, tetris.holdTetromino]
-    tetris.score += 20 * unitScore
+    [tetris.heldTetromino, tetris.tetromino] = [tetris.tetromino, tetris.heldTetromino]
+    tetris.score += 20
 }
 
 onkeydown['arrowdown'] = _ => {
-    let [x, y, r] = tetris.cursor
-    if (tetris.dropPoint[r][x + 2] != y) {
-        tetris.cursor = [x, ++y, r]
-    }
+    tetris.run(async _ => {
+        let [x, y, r] = tetris.cursor
+        if (tetris.dropPoint[r][x + 2] != y) {
+            tetris.cursor = [x, ++y, r]
+        }
+        onkeydown.inactive.length = 0
+        await tetris.setTimeout(tetris.delay)
+    })
 }
 
 onkeydown['arrowleft'] = _ => {
@@ -577,17 +583,19 @@ async function countdown() {
 }
 
 function reset() {
-    onkeydown['enter'] = play
-    timer.reset()
-    tetris.nextTetromino = tetrominoIter.next().value
     tetris.lock('Reset')
+    onkeydown['enter'] = play
+    tetris.nextTetromino = tetrominoIter.next().value
+    timer.reset()
 }
 
 function die() {
     tetris.run(async _ => {
-        titleElem.style.color = '#ef5350'
+        titleElem.style.color = '#EF5350'
         titleElem.style.opacity = 1
-        titleElem.innerHTML = 'game<br />over'
+        titleElem.textContent = 'game\nover'
+        linesElem.hidden = false
+        comboElem.hidden = true
         titleElem.animate({ opacity: [0, 1] }, 800)
         await tetris.setTimeout(1000)
         reset()
@@ -601,6 +609,8 @@ function play() {
         onkeydown['enter'] = pause
         await countdown()
         foreCanvas.hidden = false
+        linesElem.hidden = true
+        comboElem.hidden = false
     }, _ => {
         tetris.space = new Space()
         timer.play()
@@ -610,20 +620,24 @@ function play() {
 function resume() {
     tetris.run(async _ => {
         onkeydown['enter'] = pause
-        onkeydown.inactive.length = 0
         await countdown()
         foreCanvas.hidden = false
+        linesElem.hidden = true
+        comboElem.hidden = false
+        onkeydown.inactive.length = 0
         await tetris.setTimeout(tetris.delay / 4)
     }, _ => timer.play())
 }
 
 function pause() {
+    tetris.lock('Pause')
     onkeydown['enter'] = resume
     titleElem.style.color = '#66BB6A'
     titleElem.style.opacity = 1
     titleElem.textContent = 'pause'
     foreCanvas.hidden = true
-    tetris.lock('Pause')
+    linesElem.hidden = false
+    comboElem.hidden = true
     setTimeout(_ => timer.pause())
 }
 

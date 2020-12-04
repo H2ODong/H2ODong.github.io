@@ -50,6 +50,7 @@
             -webkit-text-stroke-color: white;
             text-align: center;
             text-transform: uppercase;
+            white-space: pre;
         }
 
         aside {
@@ -173,13 +174,25 @@
             border-right: 1px solid white;
         }
 
+        #lines,
         #combo {
-            visibility: hidden;
             color: #EF5350;
+            margin-right: -8%;
         }
 
+        #lines::before {
+            content: 'lines\200b';
+            margin-right: 8%;
+        }
+
+        #combo::before {
+            content: 'combo\200b';
+            margin-right: 8%;
+        }
+
+        #lines::after,
         #combo::after {
-            content: 'combo';
+            content: '';
             margin-left: 8%;
         }
     </style>
@@ -241,7 +254,8 @@
                 <p>score</p>
             </div>
             <div class="info">
-                <p id='combo'>0</p>
+                <p id="lines" hidden>0</p>
+                <p id="combo" hidden>0</p>
             </div>
             <div></div>
             <div id="new-game" class="control clickable">
