@@ -255,13 +255,7 @@ const tetris = {
         fillTetromino(nextCtx, 0, 0, 0, value)
         this._nextTetromino = value
     },
-    get delay() { return 2048 * (1 + 1 / 16384) ** (-this.score >> 6) + 32 },
-    get tick() { return this.delay / 16 + 64 },
-    get score() { return this._score },
-    set score(value) {
-        scoreElem.textContent = String(value).padStart(8, '0')
-        this._score = value
-    },
+    score: 0,
     combo: 0,
     get nlines() { return this._nlines },
     set nlines(value) {
@@ -280,6 +274,8 @@ const tetris = {
         this._nlines = linesElem.textContent = value
         this.score += 5 * this.combo
     },
+    get delay() { return 2048 * (1 + 1 / 16384) ** (-this.score >> 6) + 32 },
+    get tick() { return this.delay / 16 + 64 },
     // 涉及原生 setTimeout 的函數，需要有取消的機制
     clearTimeout: _ => { },
     setTimeout(ms) {
@@ -317,18 +313,25 @@ const timer = {
     paused: true,
     startTimestamp: performance.now(),
     pausedTimestamp: performance.now(),
+    displayScore: 0,
+    displayRatio: 10,
     play() {
         this.paused = false
         this.startTimestamp += performance.now() - this.pausedTimestamp
         timerElem.children[1].style.animationIterationCount = 'infinite'
-        requestAnimationFrame(function palying(timestamp) {
-            if (this.paused) {
+        requestAnimationFrame(function refresh(timestamp) {
+            if (this.paused && this.displayScore == this.displayRatio * tetris.score) {
                 return
             }
             let elapsed = (timestamp - this.startTimestamp) / 1000
             timerElem.children[0].textContent = String(~~(elapsed / 60)).padStart(2, '0')
             timerElem.children[2].textContent = String(~~(elapsed % 60)).padStart(2, '0')
-            requestAnimationFrame(palying.bind(this))
+            let difference = (this.displayRatio * tetris.score << 4) - this.displayScore
+            if (difference) {
+                this.displayScore += Math.max(difference >> 4, 1)
+                scoreElem.textContent = String(this.displayScore >> 4).padStart(8, '0')
+            }
+            requestAnimationFrame(refresh.bind(this))
         }.bind(this))
     },
     pause() {
@@ -339,9 +342,9 @@ const timer = {
     reset() {
         this.paused = true
         this.startTimestamp = this.pausedTimestamp = performance.now()
+        this.displayScore = 0
         timerElem.children[1].style.animationIterationCount = 1
     },
-    displayScore: 0,
 }
 
 function movedown() {
@@ -431,7 +434,6 @@ function movedown() {
         tetris.nextTetromino = tetrominoIter.next().value
     })
     tetris.nlines += nfulls
-    debugger
     tetris.score += (nfulls && 200 * nfulls - 100) + 40
     tetris.score += 1000 * (nfulls && nfulls + topmost == 20)
     return 'Drop'
