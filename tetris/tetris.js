@@ -132,7 +132,7 @@ function size(w, h) {
 
 // 畫條紋格狀背景
 for (let i = 1; i < width; i += 2) {
-    backCtx.fillStyle = '#BBB'
+    backCtx.fillStyle = '#999'
     backCtx.fillRect(...cell(i, 0), ...size(1, height))
     for (let j = 0; j < height; ++j) {
         backCtx.strokeRect(...cell(i, j), ...size(1, 1))
@@ -170,6 +170,11 @@ const timerElem = document.getElementById('timer')
 const scoreElem = document.getElementById('score')
 const linesElem = document.getElementById('lines')
 const comboElem = document.getElementById('combo')
+
+function makeTitle(status) {
+    status = String(status).replace(/(?:^|\W)./g, char => char.toUpperCase())
+    return `${status} | Tetris`
+}
 
 const tetris = {
     get space() { return this._space },
@@ -265,11 +270,11 @@ const tetris = {
         } else {
             this.combo += value - this._nlines
             comboElem.style.visibility = 'visible'
+            comboElem.textContent = this.combo
             comboElem.animate({
                 transform: 'scale(1.2) translate(0, -10%)',
                 easing: 'ease-out',
             }, 80)
-            comboElem.textContent = this.combo
         }
         this._nlines = linesElem.textContent = value
         this.score += 5 * this.combo
@@ -278,10 +283,10 @@ const tetris = {
     get tick() { return this.delay / 16 + 64 },
     // 涉及原生 setTimeout 的函數，需要有取消的機制
     clearTimeout: _ => { },
-    setTimeout(ms) {
+    setTimeout(delay) {
         return new Promise((res, rej) => {
             this.clearTimeout = rej
-            setTimeout(res, ms)
+            setTimeout(res, delay)
         })
     },
     lock(reason) {
@@ -293,8 +298,8 @@ const tetris = {
         this.lock()
         try {
             await asynfunc().finally(onFinally)
+            onkeydown.inactive.length = 0
             while (true) {
-                onkeydown.inactive.length = 0
                 switch (movedown()) {
                     case 'Drop':
                         throw 'Drop'
@@ -304,13 +309,12 @@ const tetris = {
                 await this.setTimeout(this.delay)
             }
         } catch (error) {
-            console.log('\x1b[31mCaught by tetris.run:', error)
+            console.log('%cCaught by tetris.run:', 'color: #29B6F6;', error)
         }
     },
 }
 
 const timer = {
-    paused: true,
     startTimestamp: performance.now(),
     pausedTimestamp: performance.now(),
     displayScore: 0,
@@ -318,7 +322,6 @@ const timer = {
     refreshTimerId: undefined,
     refreshScoreId: undefined,
     play() {
-        this.paused = false
         this.startTimestamp += performance.now() - this.pausedTimestamp
         timerElem.children[1].style.animationIterationCount = 'infinite'
         void function refreshTimer(timestamp) {
@@ -406,7 +409,7 @@ function movedown() {
         }
         // 消除動畫
         if (nfulls + topmost == 20) {
-            titleElem.style.color = 'black'
+            titleElem.style.color = 'white'
             titleElem.style.opacity = 1
             titleElem.textContent = 'perfect\nclear'
         }
@@ -416,11 +419,11 @@ function movedown() {
         await tetris.setTimeout(tetris.tick + 300 * (nfulls + topmost == 20))
         fulls.forEach((fy, i) => foreCtx.putImageData(lines[i], ...cell(0, fy)))
         await tetris.setTimeout(tetris.tick)
-        titleElem.style.opacity = 0
     }, _ => {
         // 著地繪製
         fillTetromino(foreCtx, x, y, r, tetris.tetromino)
         // 消除繪製
+        titleElem.style.opacity = 0
         fulls.forEach(fy => foreCtx.clearRect(...cell(0, fy), ...size(width, 1)))
         fulls.push(topmost - 1)
         for (let j = 0; j < nfulls; ++j) {
@@ -460,7 +463,7 @@ var onkeydown = event => {
         event.preventDefault()
         if (!onkeydown.inactive.includes(key)) {
             // 如果沒做什麼，會回傳 true，詳: listener = event => event.repeat || value()
-            onkeydown[key](event) || console.log('\x1b[33monkeydown:', key)
+            onkeydown[key](event) || console.log('%conkeydown:', 'color: #66BB6A;', `[${key}]`)
         }
     }
 }
@@ -519,16 +522,14 @@ onkeydown['tab'] = _ => {
     tetris.score += 20
 }
 
-onkeydown['arrowdown'] = _ => {
-    tetris.run(async _ => {
-        let [x, y, r] = tetris.cursor
-        if (tetris.dropPoint[r][x + 2] != y) {
-            tetris.cursor = [x, ++y, r]
-        }
+onkeydown['arrowdown'] = tetris.run.bind(tetris, async _ => {
+    let [x, y, r] = tetris.cursor
+    if (tetris.dropPoint[r][x + 2] != y) {
+        tetris.cursor = [x, ++y, r]
         onkeydown.inactive.length = 0
         await tetris.setTimeout(tetris.delay)
-    })
-}
+    }
+})
 
 onkeydown['arrowleft'] = _ => {
     let [x, y, r] = tetris.cursor
@@ -575,6 +576,7 @@ async function countdown() {
     try {
         for (let i = 3; i; --i) {
             titleElem.textContent = i
+            document.title = makeTitle(i)
             console.log(i)
             await tetris.setTimeout(200)
             animation = titleElem.animate({ opacity: [1, .1], easing: 'ease-in' }, 800)
@@ -585,6 +587,7 @@ async function countdown() {
         throw error
     }
     console.log(0)
+    document.title = makeTitle('playing')
 }
 
 function reset() {
@@ -599,9 +602,10 @@ function die() {
         titleElem.style.color = '#EF5350'
         titleElem.style.opacity = 1
         titleElem.textContent = 'game\nover'
+        document.title = makeTitle('game over')
+        titleElem.animate({ opacity: [0, 1] }, 800)
         linesElem.hidden = false
         comboElem.hidden = true
-        titleElem.animate({ opacity: [0, 1] }, 800)
         await tetris.setTimeout(1000)
         reset()
         throw 'Returns by Death'
@@ -636,15 +640,18 @@ function resume() {
 }
 
 function pause() {
-    tetris.lock('Pause')
-    onkeydown['enter'] = resume
-    titleElem.style.color = '#66BB6A'
-    titleElem.style.opacity = 1
-    titleElem.textContent = 'pause'
-    foreCanvas.hidden = true
-    linesElem.hidden = false
-    comboElem.hidden = true
-    setTimeout(_ => timer.pause())
+    tetris.run(async _ => {
+        await new Promise(res => setTimeout(res))
+        onkeydown['enter'] = resume
+        titleElem.style.color = '#66BB6A'
+        titleElem.style.opacity = 1
+        titleElem.textContent = 'pause'
+        document.title = makeTitle('paused')
+        foreCanvas.hidden = true
+        linesElem.hidden = false
+        comboElem.hidden = true
+        timer.pause()
+    })
 }
 
 reset()
