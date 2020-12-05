@@ -651,6 +651,7 @@ function pause() {
         linesElem.hidden = false
         comboElem.hidden = true
         timer.pause()
+        throw 'Pause'
     })
 }
 
