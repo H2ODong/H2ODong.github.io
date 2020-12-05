@@ -193,6 +193,7 @@ const tetris = {
         this.nextTetromino = tetrominoIter.next().value
         this.score = 0
         this.nlines = 0
+        timer.reset()
     },
     // dropPoint: Array[r][x+2](y)
     dropPoint: Array.from({ length: 4 }, _ => new Array(width + 1)),
@@ -319,19 +320,26 @@ const timer = {
         this.paused = false
         this.startTimestamp += performance.now() - this.pausedTimestamp
         timerElem.children[1].style.animationIterationCount = 'infinite'
-        requestAnimationFrame(function refresh(timestamp) {
-            if (this.paused && this.displayScore == this.displayRatio * tetris.score) {
+        requestAnimationFrame(function refreshTimer(timestamp) {
+            if (this.paused) {
                 return
             }
             let elapsed = (timestamp - this.startTimestamp) / 1000
             timerElem.children[0].textContent = String(~~(elapsed / 60)).padStart(2, '0')
             timerElem.children[2].textContent = String(~~(elapsed % 60)).padStart(2, '0')
-            let difference = (this.displayRatio * tetris.score << 4) - this.displayScore
-            if (difference) {
-                this.displayScore += Math.max(difference >> 4, 1)
+            requestAnimationFrame(refreshTimer.bind(this))
+        }.bind(this))
+        requestAnimationFrame(function refreshScore(score) {
+            score = this.paused && tetris.score
+            if (score && (score != tetris.score || this.displayRatio * score << 4 == this.displayScore)) {
+                return
+            }
+            let deltaScore = (this.displayRatio * (score || tetris.score) << 4) - this.displayScore
+            if (deltaScore) {
+                this.displayScore += Math.max(deltaScore >> 4, 1)
                 scoreElem.textContent = String(this.displayScore >> 4).padStart(8, '0')
             }
-            requestAnimationFrame(refresh.bind(this))
+            requestAnimationFrame(refreshScore.bind(this, score))
         }.bind(this))
     },
     pause() {
@@ -410,14 +418,14 @@ function movedown() {
         await tetris.setTimeout(tetris.tick)
         let lines = fulls.map(fy => foreCtx.getImageData(...cell(0, fy), ...size(width, 1)))
         fulls.forEach(fy => foreCtx.clearRect(...cell(0, fy), ...size(width, 1)))
-        await tetris.setTimeout(tetris.tick + 200 * (nfulls + topmost == 20))
+        await tetris.setTimeout(tetris.tick + 300 * (nfulls + topmost == 20))
         fulls.forEach((fy, i) => foreCtx.putImageData(lines[i], ...cell(0, fy)))
         await tetris.setTimeout(tetris.tick)
+        titleElem.style.opacity = 0
     }, _ => {
         // 著地繪製
         fillTetromino(foreCtx, x, y, r, tetris.tetromino)
         // 消除繪製
-        titleElem.style.opacity = 0
         fulls.forEach(fy => foreCtx.clearRect(...cell(0, fy), ...size(width, 1)))
         fulls.push(topmost - 1)
         for (let j = 0; j < nfulls; ++j) {
@@ -560,7 +568,7 @@ onkeydown[' '] = _ => {
 
 onkeydown['n'] = {
     'new game'() {
-        reset()
+        prepare()
         play()
     }
 }
@@ -584,11 +592,11 @@ async function countdown() {
     console.log(0)
 }
 
-function reset() {
+function prepare() {
     tetris.lock('Reset')
     onkeydown['enter'] = play
     tetris.nextTetromino = tetrominoIter.next().value
-    timer.reset()
+    timer.pause()
 }
 
 function die() {
@@ -600,7 +608,7 @@ function die() {
         comboElem.hidden = true
         titleElem.animate({ opacity: [0, 1] }, 800)
         await tetris.setTimeout(1000)
-        reset()
+        prepare()
         throw 'Returns by Death'
     })
     return 'Died'
@@ -643,4 +651,4 @@ function pause() {
     setTimeout(_ => timer.pause())
 }
 
-reset()
+prepare()
