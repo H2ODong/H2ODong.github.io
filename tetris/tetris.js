@@ -84,13 +84,13 @@ const tetrominoIter = function* () {
     // 先隨機選 n 個，放 tetrominoBag 的最後
     for (let k = n; k; --k) {
         let i = bag.length - k
-        let j = ~~((i + 1) * Math.random())
+        let j = (i + 1) * Math.random() | 0
         { [bag[i], bag[j]] = [bag[j], bag[i]] }
     }
     // 最後 n 個作為歷史紀錄，排除選擇
     for (let k = n; ; k = k % n + 1) {
         let i = bag.length - k
-        let j = ~~((bag.length - n) * Math.random())
+        let j = (bag.length - n) * Math.random() | 0
         { [bag[i], bag[j]] = [bag[j], bag[i]] }
         yield bag[i]
     }
