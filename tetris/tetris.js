@@ -80,7 +80,7 @@ const tetrominoes = [
 const tetrominoIter = function* () {
     // 準備一個袋子，7 種俄羅斯方塊各放 4 個
     const bag = [...tetrominoes, ...tetrominoes, ...tetrominoes, ...tetrominoes]
-    let n = 14
+    let n = 10
     // 先隨機選 n 個，放 tetrominoBag 的最後
     for (let k = n; k; --k) {
         let i = bag.length - k
