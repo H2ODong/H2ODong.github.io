@@ -193,7 +193,6 @@ const tetris = {
         this.nextTetromino = tetrominoIter.next().value
         this.score = 0
         this.nlines = 0
-        timer.reset()
     },
     // dropPoint: Array[r][x+2](y)
     dropPoint: Array.from({ length: 4 }, _ => new Array(width + 1)),
@@ -316,42 +315,38 @@ const timer = {
     pausedTimestamp: performance.now(),
     displayScore: 0,
     displayRatio: 10,
+    refreshTimerId: undefined,
+    refreshScoreId: undefined,
     play() {
         this.paused = false
         this.startTimestamp += performance.now() - this.pausedTimestamp
         timerElem.children[1].style.animationIterationCount = 'infinite'
-        requestAnimationFrame(function refreshTimer(timestamp) {
-            if (this.paused) {
-                return
-            }
+        void function refreshTimer(timestamp) {
             let elapsed = (timestamp - this.startTimestamp) / 1000
             timerElem.children[0].textContent = String(~~(elapsed / 60)).padStart(2, '0')
             timerElem.children[2].textContent = String(~~(elapsed % 60)).padStart(2, '0')
-            requestAnimationFrame(refreshTimer.bind(this))
-        }.bind(this))
-        requestAnimationFrame(function refreshScore(score) {
-            score = this.paused && tetris.score
-            if (score && (score != tetris.score || this.displayRatio * score << 4 == this.displayScore)) {
-                return
-            }
-            let deltaScore = (this.displayRatio * (score || tetris.score) << 4) - this.displayScore
-            if (deltaScore) {
-                this.displayScore += Math.max(deltaScore >> 4, 1)
-                scoreElem.textContent = String(this.displayScore >> 4).padStart(8, '0')
-            }
-            requestAnimationFrame(refreshScore.bind(this, score))
-        }.bind(this))
+            this.refreshTimerId = requestAnimationFrame(refreshTimer.bind(this))
+        }.call(this)
     },
     pause() {
-        this.paused = true
+        cancelAnimationFrame(this.refreshTimerId)
         this.pausedTimestamp = performance.now()
         timerElem.children[1].style.animationIterationCount = 1
     },
     reset() {
-        this.paused = true
+        cancelAnimationFrame(this.refreshTimerId)
+        cancelAnimationFrame(this.refreshScoreId)
         this.startTimestamp = this.pausedTimestamp = performance.now()
         this.displayScore = 0
         timerElem.children[1].style.animationIterationCount = 1
+        void function refreshScore() {
+            let deltaScore = (this.displayRatio * tetris.score << 4) - this.displayScore
+            if (deltaScore) {
+                this.displayScore += Math.max(deltaScore >> 4, 1)
+                scoreElem.textContent = String(this.displayScore >> 4).padStart(8, '0')
+            }
+            this.refreshScoreId = requestAnimationFrame(refreshScore.bind(this))
+        }.call(this)
     },
 }
 
@@ -568,7 +563,7 @@ onkeydown[' '] = _ => {
 
 onkeydown['n'] = {
     'new game'() {
-        prepare()
+        reset()
         play()
     }
 }
@@ -592,7 +587,7 @@ async function countdown() {
     console.log(0)
 }
 
-function prepare() {
+function reset() {
     tetris.lock('Reset')
     onkeydown['enter'] = play
     tetris.nextTetromino = tetrominoIter.next().value
@@ -608,7 +603,7 @@ function die() {
         comboElem.hidden = true
         titleElem.animate({ opacity: [0, 1] }, 800)
         await tetris.setTimeout(1000)
-        prepare()
+        reset()
         throw 'Returns by Death'
     })
     return 'Died'
@@ -623,6 +618,7 @@ function play() {
         comboElem.hidden = false
     }, _ => {
         tetris.space = new Space()
+        timer.reset()
         timer.play()
     })
 }
@@ -651,4 +647,4 @@ function pause() {
     setTimeout(_ => timer.pause())
 }
 
-prepare()
+reset()
