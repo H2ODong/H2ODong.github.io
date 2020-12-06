@@ -329,7 +329,7 @@ const timer = {
             timerElem.children[0].textContent = String(~~(elapsed / 60)).padStart(2, '0')
             timerElem.children[2].textContent = String(~~(elapsed % 60)).padStart(2, '0')
             this.refreshTimerId = requestAnimationFrame(refreshTimer.bind(this))
-        }.call(this)
+        }.call(this, performance.now())
     },
     pause() {
         cancelAnimationFrame(this.refreshTimerId)
@@ -445,7 +445,7 @@ function movedown() {
     return 'Drop'
 }
 
-// t: 依右手定則，1: 逆時針, -1: 順時針
+// t: 依右手定則，1: 逆時針 1/4 圈, -1: 順時針 1/4 圈
 function rotate(x, y, r, t) {
     r += t
     if (tetris.isNotCollision(x, y, r)) {
