@@ -277,7 +277,7 @@ const tetris = {
             }, 80)
         }
         this._nlines = linesElem.textContent = value
-        this.score += 5 * this.combo
+        this.score += 50 * this.combo
     },
     get delay() { return 2048 * (1 + 1 / 16384) ** (-this.score >> 6) + 32 },
     get tick() { return this.delay / 16 + 64 },
