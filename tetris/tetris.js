@@ -291,7 +291,7 @@ const tetris = {
     },
     lock(reason) {
         this.clearTimeout(reason)
-        onkeydown.inactive.push('tab', 'arrowdown', 'arrowleft', 'arrowright', 'q', 'e', ' ')
+        onkeydown.inactive.push('tab', 'arrowdown', 'arrowleft', 'arrowright', 'q', 'w', ' ')
     },
     // 在進行一些步驟前，取消正在計時的 callback，結束後繼續進行遊戲
     async run(asynfunc, onFinally) {
@@ -475,7 +475,7 @@ Object.assign(onkeydown, {
     'arrowleft': undefined,
     'arrowright': undefined,
     'q': undefined,
-    'e': undefined,
+    'w': undefined,
     ' ': undefined,
     'n': document.getElementById('new-game'),
     'enter': document.getElementById('enter'),
@@ -550,7 +550,7 @@ onkeydown['q'] = _ => {
     rotate(x, y, r, 1) || rotate(x, ++y, r, 1)
 }
 
-onkeydown['e'] = _ => {
+onkeydown['w'] = _ => {
     let [x, y, r] = tetris.cursor
     rotate(x, y, r, -1) || rotate(x, ++y, r, -1)
 }
