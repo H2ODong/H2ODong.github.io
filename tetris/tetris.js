@@ -197,10 +197,10 @@ const tetris = {
         this.heldTetromino = null
         this.nextTetromino = tetrominoIter.next().value
         this.score = 0
-        this.nlines = 0
+        this.nLines = 0
     },
-    // dropPoint: Array[r][x+2](y)
-    dropPoint: Array.from({ length: 4 }, _ => new Array(width + 1)),
+    // dropPoints: Array[r][x+2](y)
+    dropPoints: Array.from({ length: 4 }, _ => new Array(width + 1)),
     // nCellsInRows: Array[y+3]，紀錄 row 放了幾個 cell
     nCellsInRows: new Array(height + 3 + 1),
     isNotCollision(x, y, r) {
@@ -211,13 +211,13 @@ const tetris = {
     get cursor() { return this.space.center },
     set cursor([x, y, r]) {
         r = r & 3
-        let d = this.dropPoint[r][x + 2]
+        let d = this.dropPoints[r][x + 2]
         let [x0, y0, r0] = this.space.center
-        let d0 = this.dropPoint[r0][x0 + 2]
-        if (d <= y) {
+        let d0 = this.dropPoints[r0][x0 + 2]
+        if (d < y) {
             // 計算落點
             for (d = y; this.isNotCollision(x, d + 1, r); ++d) { }
-            this.dropPoint[r][x + 2] = d
+            this.dropPoints[r][x + 2] = d
         }
         clearTetromino(foreCtx, x0, y0, r0, this.tetromino)
         if (x != x0 || d != d0 || r != r0) {
@@ -230,7 +230,7 @@ const tetris = {
     },
     get tetromino() { return this._tetromino },
     set tetromino(value) {
-        this.dropPoint.forEach(array => array.fill(-4))
+        this.dropPoints.forEach(array => array.fill(-5))
         // tetromino 生成指標 [x, y, r]
         this.space.center = [(width >> 1) - 2, -4, 0]
         this._tetromino = value
@@ -246,7 +246,7 @@ const tetris = {
             this.held = false
         } else if (this._heldTetromino != null) {
             let [x, y, r] = this.cursor
-            let d = this.dropPoint[r][x + 2]
+            let d = this.dropPoints[r][x + 2]
             clearTetromino(foreCtx, x, y, r, this.tetromino)
             clearTetromino(foreCtx, x, d, r, this.tetromino)
             fillTetromino(holdCtx, 0, 0, 0, value)
@@ -262,13 +262,13 @@ const tetris = {
     },
     score: 0,
     combo: 0,
-    get nlines() { return this._nlines },
-    set nlines(value) {
-        if (value == this._nlines || !value) {
+    get nLines() { return this._nLines },
+    set nLines(value) {
+        if (value == this._nLines || !value) {
             comboElem.style.visibility = 'hidden'
             this.combo = 0
         } else {
-            this.combo += value - this._nlines
+            this.combo += value - this._nLines
             comboElem.style.visibility = 'visible'
             comboElem.textContent = this.combo
             comboElem.animate({
@@ -276,7 +276,7 @@ const tetris = {
                 easing: 'ease-out',
             }, 80)
         }
-        this._nlines = linesElem.textContent = value
+        this._nLines = linesElem.textContent = value
         this.score += 50 * this.combo
     },
     get delay() { return 2048 * (1 + 1 / 16384) ** (-this.score >> 6) + 32 },
@@ -355,7 +355,7 @@ const timer = {
 
 function movedown() {
     let [x, y, r] = tetris.cursor
-    if (tetris.dropPoint[r][x + 2] != y) {
+    if (tetris.dropPoints[r][x + 2] != y) {
         tetris.cursor = [x, ++y, r]
         return
     }
@@ -439,7 +439,7 @@ function movedown() {
         tetris.held = false
         tetris.nextTetromino = tetrominoIter.next().value
     })
-    tetris.nlines += nfulls
+    tetris.nLines += nfulls
     tetris.score += (nfulls && 200 * nfulls - 100) + 40
     tetris.score += 1000 * (nfulls && nfulls + topmost == 20)
     return 'Drop'
@@ -524,7 +524,7 @@ onkeydown['tab'] = _ => {
 
 onkeydown['arrowdown'] = tetris.run.bind(tetris, async _ => {
     let [x, y, r] = tetris.cursor
-    if (tetris.dropPoint[r][x + 2] != y) {
+    if (tetris.dropPoints[r][x + 2] != y) {
         tetris.cursor = [x, ++y, r]
         onkeydown.inactive.length = 0
         await tetris.setTimeout(tetris.delay)
@@ -557,7 +557,7 @@ onkeydown['w'] = _ => {
 
 onkeydown[' '] = _ => {
     let [x, y, r] = tetris.cursor
-    let d = tetris.dropPoint[r][x + 2]
+    let d = tetris.dropPoints[r][x + 2]
     tetris.cursor = [x, d, r]
     movedown()
 }
