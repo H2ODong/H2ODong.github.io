@@ -22,7 +22,7 @@ class Space extends Map {
         yield* this.values()
     }
     cells() {
-        return [...this.values()]
+        return [...this]
     }
     has(x, y) {
         return super.has(Space.toKey(x, y))
@@ -294,10 +294,10 @@ const tetris = {
         onkeydown.inactive.push('tab', 'arrowdown', 'arrowleft', 'arrowright', 'q', 'w', ' ')
     },
     // 在進行一些步驟前，取消正在計時的 callback，結束後繼續進行遊戲
-    async run(asynfunc, onFinally) {
+    async run(asyncFunc, onFinally) {
         this.lock()
         try {
-            await asynfunc().finally(onFinally)
+            await asyncFunc().finally(onFinally)
             onkeydown.inactive.length = 0
             while (true) {
                 switch (movedown()) {
@@ -326,8 +326,8 @@ const timer = {
         timerElem.children[1].style.animationIterationCount = 'infinite'
         void function refreshTimer(timestamp) {
             let elapsed = (timestamp - this.startTimestamp) / 1000
-            timerElem.children[0].textContent = String(~~(elapsed / 60)).padStart(2, '0')
-            timerElem.children[2].textContent = String(~~(elapsed % 60)).padStart(2, '0')
+            timerElem.children[0].textContent = String(elapsed / 60 | 0).padStart(2, '0')
+            timerElem.children[2].textContent = String(elapsed % 60 | 0).padStart(2, '0')
             this.refreshTimerId = requestAnimationFrame(refreshTimer.bind(this))
         }.call(this, performance.now())
     },
@@ -363,12 +363,12 @@ function movedown() {
         return die()
     }
     // cells 著地
-    let nfulls = 0
+    let nFulls = 0
     for (let [tx, ty] of tetris.tetromino.rotated(r)) {
         tetris.space.set(x + tx, y + ty)
         tetris.nCellsInRows[y + ty + 3] += 1
         if (tetris.nCellsInRows[y + ty + 3] == width) {
-            nfulls += 1
+            nFulls += 1
         }
     }
     // 找出並消除放滿的 row，計算各 row 平移到哪 row，同時平移 nCellsInRows
@@ -376,7 +376,7 @@ function movedown() {
     let fulls = []
     let shiftMap = new Array(height + 3 + 1)
     let topmost = height
-    if (nfulls) {
+    if (nFulls) {
         for (let j = height; j > -4; --j) {
             if (tetris.nCellsInRows[j + 3]) {
                 topmost -= 1
@@ -393,7 +393,7 @@ function movedown() {
                 tetris.space.delete(i, j)
             }
         }
-        tetris.nCellsInRows.fill(0, 0, nfulls)
+        tetris.nCellsInRows.fill(0, 0, nFulls)
         // cells 消除
         let cells = tetris.space.cells().map(([tx, ty]) => [tx, shiftMap[ty]])
         tetris.space.clear()
@@ -403,12 +403,12 @@ function movedown() {
         // 著地動畫
         fillTetromino(foreCtx, x, y, r, tetris.tetromino, 'light')
         await tetris.setTimeout(tetris.tick)
-        fillTetromino(foreCtx, x, y, r, tetris.tetromino)
-        if (!nfulls) {
+        if (!nFulls) {
             return
         }
+        fillTetromino(foreCtx, x, y, r, tetris.tetromino)
         // 消除動畫
-        if (nfulls + topmost == 20) {
+        if (nFulls + topmost == 20) {
             titleElem.style.color = 'white'
             titleElem.style.opacity = 1
             titleElem.textContent = 'perfect\nclear'
@@ -416,7 +416,7 @@ function movedown() {
         await tetris.setTimeout(tetris.tick)
         let lines = fulls.map(fy => foreCtx.getImageData(...cell(0, fy), ...size(width, 1)))
         fulls.forEach(fy => foreCtx.clearRect(...cell(0, fy), ...size(width, 1)))
-        await tetris.setTimeout(tetris.tick + 300 * (nfulls + topmost == 20))
+        await tetris.setTimeout(tetris.tick + 300 * (nFulls + topmost == 20))
         fulls.forEach((fy, i) => foreCtx.putImageData(lines[i], ...cell(0, fy)))
         await tetris.setTimeout(tetris.tick)
     }, _ => {
@@ -426,7 +426,7 @@ function movedown() {
         titleElem.style.opacity = 0
         fulls.forEach(fy => foreCtx.clearRect(...cell(0, fy), ...size(width, 1)))
         fulls.push(topmost - 1)
-        for (let j = 0; j < nfulls; ++j) {
+        for (let j = 0; j < nFulls; ++j) {
             let bottom = fulls[j]
             let top = fulls[j + 1] + 1
             if (bottom - top) {
@@ -434,14 +434,14 @@ function movedown() {
                 foreCtx.putImageData(toShift, ...cell(0, top + shiftMap[bottom] + 4))
             }
         }
-        foreCtx.clearRect(...cell(0, topmost), ...size(width, nfulls))
+        foreCtx.clearRect(...cell(0, topmost), ...size(width, nFulls))
         tetris.tetromino = tetris.nextTetromino
         tetris.held = false
         tetris.nextTetromino = tetrominoIter.next().value
     })
-    tetris.nLines += nfulls
-    tetris.score += (nfulls && 200 * nfulls - 100) + 40
-    tetris.score += 1000 * (nfulls && nfulls + topmost == 20)
+    tetris.nLines += nFulls
+    tetris.score += (nFulls && 200 * nFulls - 100) + 40
+    tetris.score += 1000 * (nFulls && nFulls + topmost == 20)
     return 'Drop'
 }
 
@@ -641,8 +641,8 @@ function resume() {
 
 function pause() {
     tetris.run(async _ => {
-        await new Promise(res => setTimeout(res))
         onkeydown['enter'] = resume
+        await new Promise(res => setTimeout(res))
         titleElem.style.color = '#66BB6A'
         titleElem.style.opacity = 1
         titleElem.textContent = 'pause'
